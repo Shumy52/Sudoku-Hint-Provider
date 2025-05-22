@@ -8,6 +8,8 @@
 #include <algorithm>
 using namespace std;
 
+const float LINE_THRESH = 0.4; // should be 70% of the image size
+
 bool DEBUG = false;
 
 wchar_t* projectPath;
@@ -120,8 +122,6 @@ ProjectionProfile computeProjectionProfile(const Mat& img) {
 				profile.vert[x]++;
 			}
 
-
-    
 	return profile;
 }
 
@@ -198,6 +198,8 @@ Mat centerDigit(const Mat& src, int outputSize = 28) {
 Mat preprocessDigit(const Mat& cell, int size = 28, bool applySkeletonization = false) {
 
 	Mat cleaned;
+
+	// Lab functions didn't work properly, so I used this
 	Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3));
 	morphologyEx(cell, cleaned, MORPH_OPEN, element);
 
@@ -281,7 +283,7 @@ int recognizeDigit(const Mat& cell, const map<int, ProjectionProfile>& reference
 		return -1;
 	}
 
-	Mat preprocessed = preprocessDigit(cell); // Preprocess the digit
+	Mat preprocessed = preprocessDigit(cell); 
 	ProjectionProfile query = computeProjectionProfile(preprocessed);
 
 	if (DEBUG) {
@@ -331,7 +333,7 @@ int recognizeDigit(const Mat& cell, const map<int, ProjectionProfile>& reference
 		bestDigit = -1; // Not confident enough...
 	}
 
-	// Debugging: Print the best match  
+
 	if (DEBUG) {
 		cout << "Best Match: Digit " << bestDigit << " with score " << bestScore << "\n";
 	}
@@ -344,7 +346,6 @@ vector<int> findLineCenters(const vector<int>& projection, int threshold) {
 	vector<int> centers;
 	bool inLine = false;
 	int start = 0;
-	//printf("Projection size is: %d\n", projection.size());
 	for (int i = 0; i < projection.size(); ++i) {
 		if (projection[i] > threshold) {
 			if (!inLine) {
@@ -398,8 +399,8 @@ vector<Mat> segmentSudokuGrid(const Mat& binaryImage) {
 
 	// 2. Find line positions
 	// Meaning of value: how long should the line be? At least X% of the length/width of the image
-	int horThresh = 0.4 * cols;  
-	int verThresh = 0.4 * rows;  
+	int horThresh = LINE_THRESH * cols;  
+	int verThresh = LINE_THRESH * rows;  
 
 	vector<int> yLines = findLineCenters(horProj, horThresh);
 	vector<int> xLines = findLineCenters(verProj, verThresh);
@@ -424,13 +425,13 @@ vector<Mat> segmentSudokuGrid(const Mat& binaryImage) {
 			Mat cell = binaryImage(cellRect).clone();  // clone so we can safely use it later
 
 			// Clip the borders to remove black edges
-			int borderSize = static_cast<int>(0.1 * min(cell.rows, cell.cols)); // Adjust as needed
+			int borderSize = static_cast<int>(0.1 * min(cell.rows, cell.cols)); 
 			Rect clippedRect(borderSize, borderSize, cell.cols - 2 * borderSize, cell.rows - 2 * borderSize);
 			if (clippedRect.width > 0 && clippedRect.height > 0) {
 				cell = cell(clippedRect).clone();
 			}
 
-			cell = preprocessDigit(cell); // Preprocess the cell for digit recognition
+			cell = preprocessDigit(cell); 
 
 			cells.push_back(cell);
 		}
@@ -439,6 +440,7 @@ vector<Mat> segmentSudokuGrid(const Mat& binaryImage) {
 	return cells;
 }
 
+// Checks if a certain move is valid (number in a cell).
 bool isValid(int grid[9][9], int row, int col, int num) {
 	for (int x = 0; x < 9; ++x)
 		if (grid[row][x] == num || grid[x][col] == num)
@@ -458,8 +460,10 @@ void showSudokuWithHint(int grid[9][9], int hintRow, int hintCol, int hintNum) {
 
 	// Grid lines
 	for (int i = 0; i <= 9; ++i) {
-		int thickness = (i % 3 == 0) ? 2 : 1;
+		int thickness = (i % 3 == 0) ? 2 : 1; // Damn boi, DAYUM BOE, THEY THICC
+		// X axis
 		line(img, Point(0, i * cellSize), Point(imgSize, i * cellSize), Scalar(0, 0, 0), thickness);
+		// Y axis
 		line(img, Point(i * cellSize, 0), Point(i * cellSize, imgSize), Scalar(0, 0, 0), thickness);
 	}
 
@@ -489,7 +493,6 @@ void showSudokuWithHint(int grid[9][9], int hintRow, int hintCol, int hintNum) {
 	}
 
 	imshow("Sudoku with Hint", img);
-	//waitKey();
 }
 
 Mat rotateImage(const Mat& src, int k) {
@@ -500,6 +503,11 @@ Mat rotateImage(const Mat& src, int k) {
 	else             dst = src.clone();
 	return dst;
 }
+
+// Used to be able to see errors in console before refresh
+// if no image can be generated. 
+#include <chrono>
+#include <thread>
 
 void sudoku() {
 	char fname[MAX_PATH];
@@ -534,13 +542,16 @@ void sudoku() {
 			if (DEBUG) {
 				for (int i = 0; i < 81; ++i) {
 					string filename = "bestCells/cell_" + to_string(i) + ".png";
-					imwrite(filename, bestCells[i]);  // Save to check if they look good
+					imwrite(filename, bestCells[i]);  // Save to check if they look sexy
 				}
 			}
 		}
 		else {
 			cerr << "Error in sudoku function: number of bestCells is not 81 (9x9)";
 			cerr << "Actual number: " << bestCells.size();
+			
+			std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+			return ;
 		}
 
 		if (DEBUG) {
@@ -595,7 +606,7 @@ int main()
 		system("cls");
 		destroyAllWindows();
 		printf("Welcome to McDonalds what can I get for ya:\n");
-		printf(" 1 - Primary function\n");
+		printf(" 1 - Sudoku Hint\n");
 		printf(" 2 - DEBUG MODE\n");
 		printf(" 0 - I`ll have two number 9s, a number 9 large, a number 6 with extra dip, a num...\n\n");
 		printf("Option: ");
@@ -610,7 +621,7 @@ int main()
 				sudoku();
 
 			default:
-				printf("Fuck off then");
+				printf("\nFuck off then\n");
 		}
 	}
 	while (op!=0);
